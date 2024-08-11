@@ -7,8 +7,10 @@ from logging_config import setup_logging
 from services.GitHubAnalyzer import GitHubAnalyzer
 import os
 from dotenv import load_dotenv
-
+from models.event_repo_request import EventRepoRequest
+from fastapi.middleware.cors import CORSMiddleware
 from services.TavilyService import TavilyService
+from services.sse_events import SseEvents
 # Load environment variables
 load_dotenv()
 
@@ -17,9 +19,22 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 github_analyzer = GitHubAnalyzer()  # Instantiate GitHubAnalyzer
 tavily_service = TavilyService()
+my_events = SseEvents()
 
 
 @app.exception_handler(404)
@@ -54,6 +69,26 @@ async def analyze_repository(input_data: GithubRepositoryRequest):
     except Exception as e:
         logger.error("[main] Error in analyzeRepository: %s", str(e))
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/add-event")
+async def add_event(event: EventRepoRequest):
+    my_events.add_event(event)
+    return {"message": "Event added successfully"}
+
+
+@app.get("/stream-event")
+async def stream_event(request: Request):
+    # Add an SSE event (Server-Sent Event) to the event stream to process the repository in real time
+    # Each event will be on repository and publish the results supabase analysis table
+    # Event will have the job_id (supabase), candidate_id (supabase), and the repository url (github)
+    # Event will be processed by the worker to analyze the repository
+    # Status will be updated in the supabase table when analysis completed
+    # complete status, and analysis_id will be sent back to the client (server side of the application though)
+
+    # Get the data from the request
+    data = await request.json()
+    while
 
 if __name__ == "__main__":
     import uvicorn
