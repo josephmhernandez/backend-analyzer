@@ -3,12 +3,13 @@ import httpx
 from clients.github_client import GitHubClient
 from constants.constants import GITHUB_API_URL
 from models.github_repository_request import GithubRepositoryRequest
-from tavily import TavilyClient
+
 from constants.constants import ENV_TAVILY_API_KEY, ENV_OPENAI_API_KEY
-from services.TavilyService import TavilyService
+# from services.TavilyService import TavilyService
 import openai
 import os
 from openai import AsyncOpenAI
+import json
 
 
 class GitHubAnalyzer:
@@ -70,66 +71,43 @@ class GitHubAnalyzer:
             messages=[{"role": "user", "content": prompt}],
             stream=True,
         )
-        response = ""
 
+        response = ""
         async for chunk in stream:
             print(chunk.choices[0].delta.content or "", end="")
             response += chunk.choices[0].delta.content or ""
 
-        return response
-    # async def analyze_repo(self, repo: GithubRepositoryRequest):
-    #     # Analyze a single repo
-    #     github_data = await self.fetch_repo_detail_links(
-    #         repo.username, repo.repository_name)
-    #     self.logger.info(
-    #         "[GitHubAnalyzer:analyze_repo] Analyzing repo: %s", str(github_data))
-    #     return github_data
-
-    # async def analyze_all_repos(self, repos):
-    #     results = []
-    #     for repo in repos:
-    #         results.append(self.analyze_repo(repo))
-    #     return results
-
-    # async def fetch_repo_detail_links(self, username: str, repository: str):
-    #     # Fetch the repo's for a given user
-    #     url = f"{GITHUB_API_URL}/repos/{username}/{repository}/contents"
-
-    #     async with httpx.AsyncClient() as client:
-    #         self.logger.info(
-    #             "[GitHubAnalyzer:fetch_repo_detail_links] Fetching github data from: %s", url)
-    #         response = await client.get(url)
-    #         response.raise_for_status()
-    #         repo_data = response.json()
-    #         self.logger.info(
-    #             "[GitHubAnalyzer:fetch_repo_detail_links] Fetched github data: %s", str(repo_data))
-    #         return {
-    #             "html_url": repo_data.get("html_url"),
-    #             "clone_url": repo_data.get("clone_url"),
-    #             "ssh_url": repo_data.get("ssh_url"),
-    #             "git_url": repo_data.get("git_url"),
-    #             "svn_url": repo_data.get("svn_url"),
-    #         }
-
-    # def analyze_source_code(self, repo_url: str):
-    #     # Analyze the source code of the repository
-    #     # prompt = (
-    #     #     f"Search the source code of this github repository: {{'repo_url': {repo_url}}} and summarize the software technologies used. I want look at the languages, frameworks, libraries, and tools used in the project. Include programming languages, frameworks, libraries, cloud providers, cloud components, database types, cache types, and other software components utilized in this application."
-    #     # )
-    #     self.logger.info(
-    #         "[GitHubAnalyzer:analyze_source_code] get source code for repo_url: %s", repo_url)
-
-    #     try:
-    #         # Use github to get the source code
-
-    #         source_code_response =
-    #         response = self.openai_client.get_search_context(prompt)
-
-    #         # Send source code to openai for analysis and summary
-    #     except Exception as e:
-    #         self.logger.error(
-    #             "[GitHubAnalyzer:analyze_source_code] Error fetching software tech summary: %s", str(e))
-    #         raise e
+        self.logger.info(
+            "[GitHubAnalyzer:analyze_repo_with_gpt] waiting for stream to close")
+        await stream.close()
+        self.logger.info(
+            "[GitHubAnalyzer:analyze_repo_with_gpt] stream closed")
+        ag_prompt = (
+            "Take the following summary and put it into a json object with the following keys: \n"
+            "1. summary \n"
+            "2. problem_statement \n"
+            "3. recency_description \n"
+            "4. demo_description \n"
+            "5. technologies_description for technologies used\n"
+            "6. techniques_description for Software techniques used\n"
+            "7. critics_description \n"
+            f"\n{response}"
+        )
+        stream = await self.openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": ag_prompt}],
+            stream=True,
+        )
+        str_res = ""
+        async for chunk in stream:
+            print(chunk.choices[0].delta.content or "", end="")
+            str_res += chunk.choices[0].delta.content or ""
+        print("\n\n\n\nTHIS IS THE JSON RESPONSE\n")
+        print(str_res)
+        json_res = json.loads(str_res)
+        print("\n\n\n\nTHIS IS THE JSON RESPONSE\n")
+        print(json_res)
+        return json_res
 
     async def fetch_repo_contents(self, repo_url: str):
 
@@ -187,3 +165,7 @@ class GitHubAnalyzer:
             "[GitHubAnalyzer:analyze_code_with_openai] response from openai: %s", response)
         return response.choices[0].message
         # return "woof"
+
+    async def aggregate_results(self, analysis):
+        # Aggregate the results of the analysis
+        pass

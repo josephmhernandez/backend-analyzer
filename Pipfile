@@ -7,6 +7,12 @@ name = "pypi"
 python-dotenv = "*"
 tavily-python = "*"
 openai = "*"
+supabase = "*"
+langchain = "*"
+langchain-openai = "*"
+pygithub = "*"
+langchain-google-vertexai = "*"
+google-generativeai = "*"
 
 [dev-packages]
 
