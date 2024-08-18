@@ -191,7 +191,7 @@ print('full res', res)
 
 
 message = (
-    f"Look at the readme file, commit history, and pr history for this repository. Desribe who this project is for and what it solves including what industry it is in. Also summarize what this project does including some of the key technology used in the project. Return the summary and problem statement in a JSON object: {{\"problem_statement\": str, \"summary\": str}} readme file: {readme_file_content} commit history: {user_commits}"
+    f"Look at the readme file, commit history, and pr history for this repository. Describe who this project is for and what it solves including what industry it is in. Also summarize what this project does including some of the key technology used in the project. Return the summary and problem statement in a JSON object: {{\"problem_statement\": str, \"summary\": str}} readme file: {readme_file_content} commit history: {user_commits}"
 )
 
 response = chat.send_message(message)

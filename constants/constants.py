@@ -131,3 +131,8 @@ PACKAGE_FILES = {
     "*.uvprojx",  # Keil uVision project file (Embedded development)
     "*.uvoptx"  # Keil uVision options file (Embedded development)
 }
+
+GITHUB_README_PATTERN = "/^readme\.(?:markdown|mdown|mkdn|md|textile|rdoc|org|creole|mediawiki|wiki|rst|asciidoc|adoc|asc|pod|txt)/i"
+
+TOP_Y_FILES = 10  # Number of files to assign a confidence score to
+TOP_X_FILES = 3  # Number of files to load into the AI model for analysis

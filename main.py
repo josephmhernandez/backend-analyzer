@@ -4,6 +4,7 @@ from constants.constants import ENV_TAVILY_API_KEY, MACHINE_REPO_ID, MACHINE_USE
 from models.github_repository_request import GithubRepositoryRequest
 import logging
 from logging_config import setup_logging
+from services.Analyzer import Analyzer
 from services.SupabaseService import SupabaseService
 from services.GitHubAnalyzer import GitHubAnalyzer
 import os
@@ -41,36 +42,13 @@ def read_root():
 @app.post("/analyzeRepository")
 async def analyze_repository(input_data: GithubRepositoryRequest):
     try:
-        result = await github_analyzer.fetch_repo_details(input_data.username, input_data.repository_name)
-        print("Result of fetch_repo_details:", result)
-        # repo_contents = await github_analyzer.fetch_repo_contents("https://github.com/josephmhernandez/lyfe-captures")
-        # aggregated_code = await github_analyzer.aggregate_code(repo_contents)
-        aggregated_code = ""
-        # analysis = await github_analyzer.analyze_code_with_openai(aggregated_code)
-        # print("Analysis:", analysis)
-        # res = tavily_service.get_software_tech_summary(result["url"])
-        analysis = await github_analyzer.analyze_repo_with_gpt(result)
-        # result = await github_analyzer.analyze_repo(input_data)
-        logger.info("[main] Repository analyzed for user: %s",
-                    input_data.username)
-
-        sb_response = await supabase_service.insert_repo_analysis(
-            repository_id=MACHINE_REPO_ID,
-            created_by=MACHINE_USER_ID,
-            summary=analysis["summary"],
-            title=input_data.repository_name,
-            username=input_data.username,
-            repo_url=result["url"],
-            problem_statement=analysis["problem_statement"],
-            recency_description=analysis["recency_description"],
-            demo_description=analysis["demo_description"],
-            technologies_description=analysis["technologies_description"],
-            techniques_description=analysis["techniques_description"],
-            critics_description=analysis["critics_description"]
-        )
+        # Get the repository data
+        an = Analyzer()
         logger.info(
-            "[main] Inserted repository analysis into supabase: %s", sb_response)
-
+            f"[main] Starting repo AI workflow with username: {input_data.username} and repository name: {input_data.repository_name}",)
+        analysis = an.start_repo_ai_workflow(
+            input_data.username, input_data.repository_name)
+        logger.info("[main] Analysis completed")
         return {"result": analysis}
     except Exception as e:
         logger.error("[main] Error in analyzeRepository: %s", str(e))
