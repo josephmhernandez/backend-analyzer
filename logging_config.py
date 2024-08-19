@@ -23,7 +23,7 @@ def setup_logging():
             },
         },
         "root": {
-            "level": "INFO",
+            "level": "DEBUG",
             "handlers": ["console", "file"],
         },
     }
