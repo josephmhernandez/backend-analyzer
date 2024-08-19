@@ -104,14 +104,12 @@ class Analyzer:
         self.logger.info(
             f"Percentage of commits made by user: {round(percentage_user_commits, 2)}")
 
+        self.logger.debug(f"User commits: {user_commits}")
         # return a string of the commit messages and the dates but only 10 dates evenly spaced
         # out over the commit history
         str_user_commits = ""
         for i, commit in enumerate(user_commits):
-            if i % 10 == 0:
-                str_user_commits += f"{commit['message']} ({commit['date']})\n"
-            else:
-                str_user_commits += f"{commit['message']}\n"
+            str_user_commits += f"{commit['message']} ({commit['date']})\n"
 
         return str_user_commits
 
@@ -203,7 +201,7 @@ class Analyzer:
         gemini_flash_model = genai.GenerativeModel(
             model_name="gemini-1.5-flash")
         message = (
-            f"You are a software dev. Look at the commit history for this repository. Write a summary describing the recency of the commits in this repository. Return the summary in a string. Include when the project started and when the last commit was made. Include a brief description of the commit history including large features that were implemented. Return the answer in a JSON object: {{\"recency_description\": str}} commit history: {user_commits}"
+            f"You are a software developer analyzing and summarizing the commit history of a github project. Write a description of the project history including seemingly important features implemented. Also include when the project started and when the last commit was made. Return the answer in a JSON object: {{\"recency_description\": str}} commit history: {user_commits}"
         )
         self.logger.info(f"Invoking GenAi message: {message}")
         res = gemini_flash_model.generate_content(message)
@@ -214,7 +212,7 @@ class Analyzer:
             recency_description)
         self.logger.info(
             f"Extracted JSON object from recency description: {extracted_json_objects}")
-        rtn_recency_description = extracted_json_objects
+        rtn_recency_description = extracted_json_objects["recency_description"]
 
         # CONDENSE DEPENDENCIES
         gemini_flash_model = genai.GenerativeModel(
@@ -323,7 +321,7 @@ class Analyzer:
             critics_description)
         self.logger.info(
             f"Extracted JSON object from critics description: {extracted_json_objects}")
-        rtn_critics_description = extracted_json_objects
+        rtn_critics_description = extracted_json_objects["critics_description"]
 
         # DOUBLE CHECK MOST UP TO DATE DESCRIPTIONS
         message = (
