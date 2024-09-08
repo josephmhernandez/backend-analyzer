@@ -11,6 +11,8 @@ import os
 from github import Github
 from langchain_openai import ChatOpenAI
 from constants.constants import CODE_FILE_EXTENSIONS, PACKAGE_FILES, GITHUB_README_PATTERN, TOP_X_FILES, TOP_Y_FILES
+from datetime import datetime, timezone
+from utils import helpers
 
 
 class Analyzer:
@@ -25,16 +27,24 @@ class Analyzer:
         self.g = Github(os.getenv("GH_API_PAT"))
 
     '''
-    @input: username, repositoryName
-    @output: files: List[File], readme_file: File, package_files: List[File]
+    @input: username, repository_name
+    @output: 
+        files: List[File] 
+        readme_file: File
+        package_files: List[File]
+        repo_url: str
     '''
 
-    def get_repo_files(self, username, repositoryName):
-        repo = self.g.get_repo(f"{username}/{repositoryName}")
+    def get_repo_files(self, username, repository_name):
+        self.logger.info(
+            f"[Analyzer: get_repo_files] Getting repository files for {username}/{repository_name}")
+        repo = self.g.get_repo(f"{username}/{repository_name}")
         contents = repo.get_contents("")
         files = []
         readme_file = None
         package_files = []
+        # Get the url
+        repo_url = repo.html_url
         while contents:
             file_content = contents.pop(0)
             if file_content.type == "dir":
@@ -58,7 +68,7 @@ class Analyzer:
                 if file_content.name in PACKAGE_FILES:
                     package_files.append(file_content)
 
-        return files, readme_file, package_files
+        return files, readme_file, package_files, repo_url
 
     '''
     Get the USER commits in this repository
@@ -99,10 +109,10 @@ class Analyzer:
         # How many commits were made in total
         num_total_commits = len(list(commits))
         # What percentage of the commits were made by the user
-        percentage_user_commits = num_user_commits / num_total_commits
+        percentage_user_commits = num_user_commits / num_total_commits * 100
         # Round to 2 decimal places
         self.logger.info(
-            f"Percentage of commits made by user: {round(percentage_user_commits, 2)}")
+            f"Percentage of commits made by user: {round(percentage_user_commits, 2)}%")
 
         self.logger.debug(f"User commits: {user_commits}")
         # return a string of the commit messages and the dates but only 10 dates evenly spaced
@@ -183,14 +193,22 @@ class Analyzer:
         rtn_techniques_description = None
         rtn_critics_description = None
 
-        files, readme_file, package_files = self.get_repo_files(
+        files, readme_file, package_files, repo_url = self.get_repo_files(
             username, repository_name)
-
+        rtn_repo_url = repo_url
         package_file = package_files[0] if len(package_files) > 0 else None
         # condense the package file to only a list of dependency names and versions
-        package_file_content = package_file.decoded_content
+        package_file_content = ""
+        if package_file is not None:
+            package_file_content = package_file.decoded_content
         self.logger.info(f"Package file content: {package_file_content}")
-        readme_file_content = readme_file.decoded_content
+
+        readme_file_content = ""
+        try:
+            readme_file_content = readme_file.decoded_content
+        except:
+            self.logger.warn("No README file found.")
+            pass
 
         file_paths = [file.path for file in files]
         self.logger.info(f"All file paths: {file_paths}")
@@ -215,6 +233,12 @@ class Analyzer:
         rtn_recency_description = extracted_json_objects["recency_description"]
 
         # CONDENSE DEPENDENCIES
+        if package_file is None:
+            self.logger.error(
+                "No package file found for this repository. Not enough information to proceed.")
+            raise Exception(
+                "No package file found for this repository. Not enough information to proceed.")
+
         gemini_flash_model = genai.GenerativeModel(
             model_name="gemini-1.5-flash")
         message = (
@@ -241,7 +265,7 @@ class Analyzer:
             technologies_description)
         self.logger.info(
             f"Extracted JSON object from technologies description: {extracted_json_objects}")
-        rtn_technologies_description = extracted_json_objects
+        rtn_technologies_description = extracted_json_objects["technologies_description"]
 
         # GET PROJECT SUMMARY AND PROBLEM STATEMENT
         message = (
@@ -278,12 +302,15 @@ class Analyzer:
             f"Extracted JSON objects from important files: {extracted_json_objects}")
 
         # GET THE TOP X FILES TO LOAD INTO THE AI MODEL TO ANALYZE (good practices & improvements)
-        top_x_files = extracted_json_objects[:TOP_X_FILES]
+        top_x_files = extracted_json_objects
         self.logger.info(f"Top X files: {top_x_files}")
 
         important_files_content = []
+        added_files = 0
         for file in top_x_files:
             # Look up file path in files and get the decoded_content for that file
+            if added_files >= TOP_X_FILES:
+                break
 
             file_path = file["file_path"]
 
@@ -296,9 +323,17 @@ class Analyzer:
                 continue
             else:
                 self.logger.info(f"Found file: {file_path}")
-            file_content = file_obj.decoded_content
+
+            # DECODE FILE CONTENT.
+            file_content = helpers.extract_file_content(file_obj)
+            if file_content is None:
+                self.logger.warn(f"File content not found: {file_path}")
+                # Skip this file
+                continue
+
             important_files_content.append(
                 {"file_path": file_path, "content": file_content})
+            added_files += 1
 
         message = (
             f"Here is a summary of the project for context. Now look at these three important files and describe how you would re-write them to make them more efficient. Make sure to highlight where the good coding practices as well as criticize anti-patterns or bad coding practices found in these modules. List the points you would change and why you woulld change it. Return the analysis in a JSON OBJECT: [{{\"file_path\": str, \"analysis\": str}}]. Only give me the JSON object. Don't return suggested code. Only analyse the files if the file content is present. Here are the files: {important_files_content}"
@@ -310,7 +345,7 @@ class Analyzer:
 
         # USE ANALYSIS TO GET CRITICS AND ADD TO OTHER JSON OBJECTS
         message = (
-            f"Look at the analysis of the important files. Write a summary of the critics and suggestions made in the analysis. Return the summary in a JSON object: {{\"critics_description\": str}} analysis: {analysis}"
+            f"Look at the analysis of the important files. Write a summary of the critics and suggestions made in the analysis. Return the summary in a JSON object: {{\"critics_description\": \"description\"}}. Here is the analysis: {analysis}"
         )
         self.logger.info(f"Invoking GenAi chat(1) message: {message}")
         response = chat.send_message(message)
@@ -340,25 +375,9 @@ class Analyzer:
         rtn_problem_statement = extracted_json_objects["problem_statement"]
         rtn_techniques_description = extracted_json_objects["techniques_description"]
 
-        print(type(rtn_recency_description))
-        print(rtn_recency_description)
-        print(type(rtn_technologies_description))
-        print(rtn_technologies_description)
-        print(type(rtn_summary))
-        print(rtn_summary)
-        print(type(rtn_problem_statement))
-        print(rtn_problem_statement)
-        print(type(rtn_critics_description))
-        print(rtn_critics_description)
-        print(type(rtn_techniques_description))
-        print(rtn_techniques_description)
-        print(type(rtn_repo_url))
-        print(rtn_repo_url)
-        print(type(rtn_user))
-        print(rtn_user)
-        print(type(rtn_title))
-        print(rtn_title)
-
+        # Time at UTC timezone
+        timestamp_with_tz = datetime.now(
+            timezone.utc).strftime('%Y-%m-%d %H:%M:%S%z')
         return {
             "recency_description": rtn_recency_description,
             "technologies_description": rtn_technologies_description,
@@ -368,5 +387,8 @@ class Analyzer:
             "techniques_description": rtn_techniques_description,
             "repo_url": rtn_repo_url,
             "user": rtn_user,
-            "title": rtn_title
+            "title": rtn_title,
+            "repo_url": rtn_repo_url,
+            "created_at": timestamp_with_tz,
+            "demo_description": "",
         }

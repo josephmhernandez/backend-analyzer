@@ -8,7 +8,7 @@ def setup_logging():
         "disable_existing_loggers": False,
         "formatters": {
             "default": {
-                "format": "[%(asctime)s] %(levelname)s in %(module)s: %(message)s",
+                "format": "[%(asctime)s] %(levelname)s [%(module)s: %(funcName)s] - %(message)s",
             },
         },
         "handlers": {
@@ -23,7 +23,7 @@ def setup_logging():
             },
         },
         "root": {
-            "level": "DEBUG",
+            "level": "INFO",
             "handlers": ["console", "file"],
         },
     }
