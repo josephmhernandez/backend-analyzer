@@ -18,8 +18,8 @@ REPO_ANALYSIS_TABLE = "repository_analyses"
 
 
 # Supabase machine user constants
-MACHINE_USER_ID = "jjjj7777-5e1b-4b5d-8b7f-4b9c0e0f8e7e"
-MACHINE_REPO_ID = "jjjj7777-repo-id"
+MACHINE_USER_ID = "ee040e73-d678-4b95-b8f2-f3f8468ff2a8"
+MACHINE_REPO_ID = "4676e0ca-dc64-4246-b156-309bc91d5d1d"
 
 
 # AI Model Constants

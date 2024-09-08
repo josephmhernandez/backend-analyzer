@@ -47,7 +47,7 @@ class SupabaseService:
         Inserts a repository analysis into the repository_analyses table
         '''
         try:
-            response = await self.supabase_client.table(REPO_ANALYSIS_TABLE).insert(
+            response = self.supabase_client.table(REPO_ANALYSIS_TABLE).insert(
                 {
                     "repository_id": repository_id,
                     "created_by": created_by,
@@ -60,7 +60,7 @@ class SupabaseService:
                     "demo_description": demo_description,
                     "technologies_description": technologies_description,
                     "techniques_description": techniques_description,
-                    "critics_description": critics_description
+                    "critics_description": critics_description,
                 }
             ).execute()
 
