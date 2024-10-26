@@ -81,6 +81,106 @@ async def analyze_repository(input_data: GithubRepositoryRequest):
         )
         logger.info(f"[main] supabase response: {res}")
         logger.info("[main] Analysis inserted into the database")
+        return {"status": "success"}
+        # return {"result": analysis}
+    except Exception as ex:
+        logger.error(f"[main] Error analyzing repository: {str(ex)}")
+        # insert error into the database
+        try:  # Insert the error into the database
+            res = await supabase_service.insert_repo_analysis(
+                input_data.dbRepoId,
+                input_data.userId,
+                "Error creating analysis. We're looking into it.",
+                input_data.repoName,
+                "",
+                input_data.repoUrl,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            )
+        except Exception as db_insert_error:
+            logger.error(
+                f"[main] Error inserting error into the database: {str(db_insert_error)}")
+            raise HTTPException(
+                status_code=500, detail="Error in analysis and error inserting into the database")
+
+        logger.error(
+            f"Error Analyzing this repository. Error inputted into analysis DB table: {input_data.dbRepoId}")
+
+        raise HTTPException(status_code=400, detail=str(ex))
+
+    # unreachable code
+    return {"status": "success"}
+
+
+@app.post("/mock/analyze-repository")
+async def mock_analyze_repository(input_data: GithubRepositoryRequest):
+    try:
+        logger.info(
+            f"[main] Analyzing repository for: {input_data}")
+        # Get the repository data
+        username, repository_name = extract_github_info(input_data.repoUrl)
+
+        if not username or not repository_name:
+            raise HTTPException(
+                status_code=400, detail="Invalid GitHub repository URL")
+
+        logger.info(
+            f"MOCKED ENDPOINT -> SKIPPING repo AI workflow with username: {username} and repository name: {repository_name}",)
+
+        # Mocked analysis
+        rtn_recency_description = "mocked recency description"
+        rtn_technologies_description = "mocked technologies description"
+        rtn_summary = "mocked summary"
+        rtn_problem_statement = "mocked problem statement"
+        rtn_critics_description = "mocked critics description"
+        rtn_techniques_description = "mocked techniques description"
+        rtn_repo_url = "mocked repo url"
+        rtn_user = "mocked user"
+        rtn_title = "mocked title"
+        timestamp_with_tz = "2024-08-19 11:56:47+0000"
+        analysis = {
+            "recency_description": rtn_recency_description,
+            "technologies_description": rtn_technologies_description,
+            "summary": rtn_summary,
+            "problem_statement": rtn_problem_statement,
+            "critics_description": rtn_critics_description,
+            "techniques_description": rtn_techniques_description,
+            "repo_url": rtn_repo_url,
+            "user": rtn_user,
+            "title": rtn_title,
+            "repo_url": rtn_repo_url,
+            "created_at": timestamp_with_tz,
+            "demo_description": "",
+        }
+
+        logger.info("Analysis completed")
+
+        # logger.info("Formatting analysis content")
+        # for key in analysis:
+        #     analysis[key] = helpers.format_analysis_content(analysis[key])
+
+        # Insert the analysis into the database
+        logger.info("Inserting analysis into the database")
+        res = await supabase_service.insert_repo_analysis(
+            input_data.dbRepoId,
+            input_data.userId,
+            analysis["summary"],
+            analysis["title"],
+            analysis["user"],  # github username
+            analysis["repo_url"],
+            analysis["problem_statement"],
+            analysis["recency_description"],
+            analysis["demo_description"],
+            analysis["technologies_description"],
+            analysis["techniques_description"],
+            analysis["critics_description"],
+        )
+        logger.info(f"[main] supabase response: {res}")
+        logger.info("[main] Analysis inserted into the database")
         # return {"result": analysis}
     except Exception as ex:
         logger.error(f"[main] Error analyzing repository: {str(ex)}")
@@ -112,7 +212,7 @@ async def analyze_repository(input_data: GithubRepositoryRequest):
         raise HTTPException(status_code=400, detail=str(ex))
 
 
-@app.post("/input-data-local")
+@ app.post("/input-data-local")
 async def input_data(input_data: dict):
 
     repo_id = input_data.get("repo_id")
