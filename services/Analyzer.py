@@ -1,5 +1,4 @@
 import re
-import json
 import google.generativeai as genai
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -13,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from constants.constants import CODE_FILE_EXTENSIONS, PACKAGE_FILES, GITHUB_README_PATTERN, TOP_X_FILES, TOP_Y_FILES
 from datetime import datetime, timezone
 from utils import helpers
+import json5
 
 
 class Analyzer:
@@ -140,9 +140,9 @@ class Analyzer:
             json_str = match.group()
             try:
                 # Parse the JSON string into a Python list
-                data = json.loads(json_str)
+                data = json5.loads(json_str)
                 return data
-            except json.JSONDecodeError as e:
+            except Exception as e:
                 print(f"Failed to decode JSON: {e}")
                 return None
         else:
@@ -161,10 +161,15 @@ class Analyzer:
         if match:
             json_str = match.group()
             try:
+                # Preprocess the JSON string
+                # json_str = json_str.replace('\n', '\\n')
+                # json_str = json_str.replace('\t', '\\t')
+                # json_str = json_str.replace('\r', '\\r')
+
                 # Parse the JSON string into a Python dictionary
-                data = json.loads(json_str)
+                data = json5.loads(json_str)
                 return data
-            except json.JSONDecodeError as e:
+            except Exception as e:
                 self.logger.warn(f"Failed to decode JSON: {e}")
                 self.logger.warn(f"JSON string: {json_str}")
                 return None
