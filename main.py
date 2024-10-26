@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.responses import JSONResponse
 from constants.constants import ENV_TAVILY_API_KEY, MACHINE_REPO_ID, MACHINE_USER_ID
 from models.github_repository_request import GithubRepositoryRequest
@@ -11,6 +11,7 @@ import os
 from dotenv import load_dotenv
 from services.GitHubHelper import extract_github_info
 from utils import helpers
+from fastapi.middleware.cors import CORSMiddleware
 # from services.TavilyService import TavilyService
 # Load environment variables
 load_dotenv()
@@ -20,6 +21,13 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    # allow_origins=["https://your-vercel-app.vercel.app"],  # Vercel domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 github_analyzer = GitHubAnalyzer()  # Instantiate GitHubAnalyzer
 # tavily_service = TavilyService()
@@ -41,7 +49,9 @@ def read_root():
 
 
 @app.post("/analyze-repository")
-async def analyze_repository(input_data: GithubRepositoryRequest):
+async def analyze_repository(input_data: GithubRepositoryRequest, authorization: str = Header(None)):
+    check_api_authorization(authorization)
+
     try:
         logger.info(
             f"[main] Analyzing repository for: {input_data}")
@@ -117,7 +127,8 @@ async def analyze_repository(input_data: GithubRepositoryRequest):
 
 
 @app.post("/mock/analyze-repository")
-async def mock_analyze_repository(input_data: GithubRepositoryRequest):
+async def mock_analyze_repository(input_data: GithubRepositoryRequest, authorization: str = Header(None)):
+    check_api_authorization(authorization)
     try:
         logger.info(
             f"[main] Analyzing repository for: {input_data}")
@@ -249,6 +260,12 @@ async def input_data(input_data: dict):
     )
     print(res)
     return {"result": "success"}
+
+
+def check_api_authorization(api_key):
+    if api_key != os.getenv("SECURE_API_KEY"):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
 
 if __name__ == "__main__":
     import uvicorn
