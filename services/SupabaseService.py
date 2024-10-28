@@ -64,8 +64,15 @@ class SupabaseService:
                 }
             ).execute()
 
-            # Extract the id value from the response
-            return response["data"][0]["id"]
+            # Log the response to understand its structure
+            self.logger.info("Insert response: %s", response)
+
+            # Access the data correctly based on the response structure
+            if response.data:
+                return response.data[0]["id"]
+            else:
+                self.logger.error("No data in response")
+                return None
         except KeyError as e:
             self.logger.error(
                 "Extracting id object in insert_repo_analysis: %s", e)

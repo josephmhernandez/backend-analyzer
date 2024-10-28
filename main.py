@@ -12,6 +12,10 @@ from dotenv import load_dotenv
 from services.GitHubHelper import extract_github_info
 from utils import helpers
 from fastapi.middleware.cors import CORSMiddleware
+
+from fastapi import BackgroundTasks
+
+
 # from services.TavilyService import TavilyService
 # Load environment variables
 load_dotenv()
@@ -48,10 +52,7 @@ def read_root():
     return {"message": "Hello World"}
 
 
-@app.post("/analyze-repository")
-async def analyze_repository(input_data: GithubRepositoryRequest, authorization: str = Header(None)):
-    check_api_authorization(authorization)
-
+async def long_running_job_analyze_repo(input_data):
     try:
         logger.info(
             f"[main] Analyzing repository for: {input_data}")
@@ -122,8 +123,13 @@ async def analyze_repository(input_data: GithubRepositoryRequest, authorization:
 
         raise HTTPException(status_code=400, detail=str(ex))
 
+
+@app.post("/analyze-repository")
+async def analyze_repository(input_data: GithubRepositoryRequest, background_tasks: BackgroundTasks, authorization: str = Header(None)):
+    check_api_authorization(authorization)
+    background_tasks.add_task(long_running_job_analyze_repo, input_data)
     # unreachable code
-    return {"status": "success"}
+    return {"result": "success"}
 
 
 @app.post("/mock/analyze-repository")
