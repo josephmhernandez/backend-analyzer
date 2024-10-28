@@ -14,6 +14,8 @@ pygithub = "*"
 langchain-google-vertexai = "*"
 google-generativeai = "*"
 json5 = "*"
+uvicorn = "*"
+fastapi = "*"
 
 [dev-packages]
 pytest = "*"
