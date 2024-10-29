@@ -41,3 +41,22 @@ deploy to aws (deploy.sh not committed)
 ```
 ./deploy.sh
 ```
+
+Redis Stuff
+Locally start redis
+
+```
+docker pull redis:latest
+docker run --name my-local-redis -p 6379:6379 -d redis:latest
+```
+
+Test local redis is up
+
+    ```
+    docker exec -it my-redis redis-cli
+    SET testkey "Hello, Redis!"
+
+    GET testkey
+    ```
+
+

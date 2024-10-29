@@ -1,15 +1,18 @@
+from multiprocessing.pool import AsyncResult
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.responses import JSONResponse
+from celery_app import celery_app
 from constants.constants import ENV_TAVILY_API_KEY, MACHINE_REPO_ID, MACHINE_USER_ID
 from models.github_repository_request import GithubRepositoryRequest
 import logging
 from logging_config import setup_logging
 from services.Analyzer import Analyzer
 from services.SupabaseService import SupabaseService
-from services.GitHubAnalyzer import GitHubAnalyzer
+# from services.GitHubAnalyzer import GitHubAnalyzer
 import os
 from dotenv import load_dotenv
 from services.GitHubHelper import extract_github_info
+from tasks import long_running_job_analyze_repo
 from utils import helpers
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-github_analyzer = GitHubAnalyzer()  # Instantiate GitHubAnalyzer
+# github_analyzer = GitHubAnalyzer()  # Instantiate GitHubAnalyzer
 # tavily_service = TavilyService()
 supabase_service = SupabaseService()
 
@@ -52,84 +55,48 @@ def read_root():
     return {"message": "Hello World"}
 
 
-async def long_running_job_analyze_repo(input_data):
-    try:
-        logger.info(
-            f"[main] Analyzing repository for: {input_data}")
-        # Get the repository data
-        username, repository_name = extract_github_info(input_data.repoUrl)
-
-        if not username or not repository_name:
-            raise HTTPException(
-                status_code=400, detail="Invalid GitHub repository URL")
-
-        an = Analyzer()
-        logger.info(
-            f"Starting repo AI workflow with username: {username} and repository name: {repository_name}",)
-        analysis = an.start_repo_ai_workflow(
-            username, repository_name)
-        logger.info("Analysis completed")
-
-        # logger.info("Formatting analysis content")
-        # for key in analysis:
-        #     analysis[key] = helpers.format_analysis_content(analysis[key])
-
-        # Insert the analysis into the database
-        logger.info("Inserting analysis into the database")
-        res = await supabase_service.insert_repo_analysis(
-            input_data.dbRepoId,
-            input_data.userId,
-            analysis["summary"],
-            analysis["title"],
-            analysis["user"],  # github username
-            analysis["repo_url"],
-            analysis["problem_statement"],
-            analysis["recency_description"],
-            analysis["demo_description"],
-            analysis["technologies_description"],
-            analysis["techniques_description"],
-            analysis["critics_description"],
-        )
-        logger.info(f"[main] supabase response: {res}")
-        logger.info("[main] Analysis inserted into the database")
-        return {"status": "success"}
-        # return {"result": analysis}
-    except Exception as ex:
-        logger.error(f"[main] Error analyzing repository: {str(ex)}")
-        # insert error into the database
-        try:  # Insert the error into the database
-            res = await supabase_service.insert_repo_analysis(
-                input_data.dbRepoId,
-                input_data.userId,
-                "Error creating analysis. We're looking into it.",
-                input_data.repoName,
-                "",
-                input_data.repoUrl,
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-            )
-        except Exception as db_insert_error:
-            logger.error(
-                f"[main] Error inserting error into the database: {str(db_insert_error)}")
-            raise HTTPException(
-                status_code=500, detail="Error in analysis and error inserting into the database")
-
-        logger.error(
-            f"Error Analyzing this repository. Error inputted into analysis DB table: {input_data.dbRepoId}")
-
-        raise HTTPException(status_code=400, detail=str(ex))
-
-
 @app.post("/analyze-repository")
-async def analyze_repository(input_data: GithubRepositoryRequest, background_tasks: BackgroundTasks, authorization: str = Header(None)):
+async def analyze_repository(input_data: GithubRepositoryRequest, authorization: str = Header(None)):
     check_api_authorization(authorization)
-    background_tasks.add_task(long_running_job_analyze_repo, input_data)
-    # unreachable code
-    return {"result": "success"}
+    try:
+        input_data_dict = input_data.dict()
+
+        # Enqueue the task
+        logger.info(f"Placing task in queue: {input_data_dict}")
+        task = long_running_job_analyze_repo.delay(input_data_dict)
+        logger.info(f"Task ID: {task.id}")
+    except Exception as ex:
+        logger.error(f"Error submitting task: {str(ex)}")
+        raise HTTPException(
+            status_code=500, detail="Error analyzing repository")
+    # Optionally return the task ID
+    return {"status": "Job submitted successfully", "task_id": task.id}
+
+
+@app.get("/tasks/{task_id}/status")
+async def get_task_status(task_id: str):
+    task_result = celery_app.AsyncResult(task_id)
+    if task_result.state == 'PENDING':
+        response = {
+            "state": task_result.state,
+            "status": "Pending..."
+        }
+    elif task_result.state == 'SUCCESS':
+        response = {
+            "state": task_result.state,
+            "status": task_result.result
+        }
+    elif task_result.state == 'FAILURE':
+        response = {
+            "state": task_result.state,
+            "status": str(task_result.info),  # Exception info
+        }
+    else:
+        response = {
+            "state": task_result.state,
+            "status": task_result.info
+        }
+    return response
 
 
 @app.post("/mock/analyze-repository")
@@ -182,7 +149,7 @@ async def mock_analyze_repository(input_data: GithubRepositoryRequest, authoriza
 
         # Insert the analysis into the database
         logger.info("Inserting analysis into the database")
-        res = await supabase_service.insert_repo_analysis(
+        res = supabase_service.insert_repo_analysis(
             input_data.dbRepoId,
             input_data.userId,
             analysis["summary"],
@@ -203,7 +170,7 @@ async def mock_analyze_repository(input_data: GithubRepositoryRequest, authoriza
         logger.error(f"[main] Error analyzing repository: {str(ex)}")
         # insert error into the database
         try:  # Insert the error into the database
-            res = await supabase_service.insert_repo_analysis(
+            res = supabase_service.insert_repo_analysis(
                 input_data.dbRepoId,
                 input_data.userId,
                 "Error creating analysis. We're looking into it.",
@@ -250,7 +217,7 @@ async def input_data(input_data: dict):
         "created_at": "2024-08-19 11:56:47+0000",
         "demo_description": ""
     }
-    res = await supabase_service.insert_repo_analysis(
+    res = supabase_service.insert_repo_analysis(
         repository_id=repo_id,
         created_by=user_id,
         summary=input_data["summary"],

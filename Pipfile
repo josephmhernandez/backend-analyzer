@@ -16,6 +16,8 @@ google-generativeai = "*"
 json5 = "*"
 uvicorn = "*"
 fastapi = "*"
+celery = "*"
+redis = "*"
 
 [dev-packages]
 pytest = "*"

@@ -42,7 +42,7 @@ class SupabaseService:
             )
         )
 
-    async def insert_repo_analysis(self, repository_id: str, created_by: str, summary: str, title: str, username: str, repo_url: str, problem_statement: str, recency_description: str, demo_description: str, technologies_description: str, techniques_description: str, critics_description: str):
+    def insert_repo_analysis(self, repository_id: str, created_by: str, summary: str, title: str, username: str, repo_url: str, problem_statement: str, recency_description: str, demo_description: str, technologies_description: str, techniques_description: str, critics_description: str):
         '''
         Inserts a repository analysis into the repository_analyses table
         '''
