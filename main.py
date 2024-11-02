@@ -62,7 +62,8 @@ async def analyze_repository(input_data: GithubRepositoryRequest, authorization:
         input_data_dict = input_data.dict()
 
         # Enqueue the task
-        logger.info(f"Placing task in queue: {input_data_dict}")
+        logger.info(
+            f"Placing task: {input_data_dict} in queue: {os.getenv('CELERY_BROKER_URL')}")
         task = long_running_job_analyze_repo.delay(input_data_dict)
         logger.info(f"Task ID: {task.id}")
     except Exception as ex:
