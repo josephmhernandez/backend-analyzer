@@ -12,7 +12,6 @@ curl -X POST http://127.0.0.1:8000/analyze-repository \
  -H "Content-Type: application/json" \
  -d '{"repoUrl": "https://github.com/josephmhernandez/SpatialRecognition", "repoName":"SpatialRecognition", "dbRepoId": "f4aedd2b-14e5-43e6-abab-aea1d598c733", "userId": "ee040e73-d678-4b95-b8f2-f3f8468ff2a8"}'
 
-
 curl -X POST http://127.0.0.1:8000/analyze-repository \
  -H "Content-Type: application/json" \
  -d '{"repoUrl": "https://github.com/josephmhernandez/SkinCancerDetection", "repoName":"SkinCancerDetection", "dbRepoId": "28a3c30c-ff85-4d2e-8929-6baaaab0a09b", "userId": "ee040e73-d678-4b95-b8f2-f3f8468ff2a8"}'
@@ -23,3 +22,41 @@ curl -X POST http://127.0.0.1:8000/input-data-local \
  -d '{"user_id": "ee040e73-d678-4b95-b8f2-f3f8468ff2a8", "repo_id":"4687dc3c-e0e3-4e98-8e32-c324b4407124"}'
 
 USER: ee040e73-d678-4b95-b8f2-f3f8468ff2a8 -> josephmhernandez15@gmail.com email
+
+NEW
+
+pipenv requirements > requirements.txt
+
+uvicorn main:app --reload
+
+local docker
+
+```
+docker build -t be-analyzer .
+docker run -d -p 8000:8000 be-analyzer
+```
+
+deploy to aws (deploy.sh not committed)
+
+```
+./deploy.sh
+```
+
+Redis Stuff
+Locally start redis
+
+```
+docker pull redis:latest
+docker run --name my-local-redis -p 6379:6379 -d redis:latest
+```
+
+Test local redis is up
+
+    ```
+    docker exec -it my-redis redis-cli
+    SET testkey "Hello, Redis!"
+
+    GET testkey
+    ```
+
+

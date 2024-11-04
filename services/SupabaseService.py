@@ -42,7 +42,7 @@ class SupabaseService:
             )
         )
 
-    async def insert_repo_analysis(self, repository_id: str, created_by: str, summary: str, title: str, username: str, repo_url: str, problem_statement: str, recency_description: str, demo_description: str, technologies_description: str, techniques_description: str, critics_description: str):
+    def insert_repo_analysis(self, repository_id: str, created_by: str, summary: str, title: str, username: str, repo_url: str, problem_statement: str, recency_description: str, demo_description: str, technologies_description: str, techniques_description: str, critics_description: str):
         '''
         Inserts a repository analysis into the repository_analyses table
         '''
@@ -64,8 +64,15 @@ class SupabaseService:
                 }
             ).execute()
 
-            # Extract the id value from the response
-            return response["data"][0]["id"]
+            # Log the response to understand its structure
+            self.logger.info("Insert response: %s", response)
+
+            # Access the data correctly based on the response structure
+            if response.data:
+                return response.data[0]["id"]
+            else:
+                self.logger.error("No data in response")
+                return None
         except KeyError as e:
             self.logger.error(
                 "Extracting id object in insert_repo_analysis: %s", e)

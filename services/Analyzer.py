@@ -170,11 +170,11 @@ class Analyzer:
                 data = json5.loads(json_str)
                 return data
             except Exception as e:
-                self.logger.warn(f"Failed to decode JSON: {e}")
-                self.logger.warn(f"JSON string: {json_str}")
+                self.logger.warning(f"Failed to decode JSON: {e}")
+                self.logger.warning(f"JSON string: {json_str}")
                 return None
         else:
-            self.logger.warn(f"No JSON object found in the text. {text}")
+            self.logger.warning(f"No JSON object found in the text. {text}")
             return None
 
     '''
@@ -383,6 +383,22 @@ class Analyzer:
         # Time at UTC timezone
         timestamp_with_tz = datetime.now(
             timezone.utc).strftime('%Y-%m-%d %H:%M:%S%z')
+
+        if rtn_recency_description is None:
+            rtn_recency_description = ""
+        if rtn_technologies_description is None:
+            rtn_technologies_description = ""
+        if rtn_summary is None:
+            rtn_summary = ""
+        if rtn_problem_statement is None:
+            rtn_problem_statement = ""
+        if rtn_critics_description is None:
+            rtn_critics_description = ""
+        if rtn_techniques_description is None:
+            rtn_techniques_description = ""
+        if rtn_repo_url is None:
+            rtn_repo_url = ""
+
         return {
             "recency_description": rtn_recency_description,
             "technologies_description": rtn_technologies_description,
