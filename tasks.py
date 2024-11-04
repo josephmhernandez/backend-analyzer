@@ -4,7 +4,6 @@ from services.Analyzer import Analyzer
 from services.SupabaseService import SupabaseService
 from services.GitHubHelper import extract_github_info
 from models.github_repository_request import GithubRepositoryRequest
-from constants.constants import ENV_TAVILY_API_KEY, MACHINE_REPO_ID, MACHINE_USER_ID
 
 from dotenv import load_dotenv
 from celery.exceptions import MaxRetriesExceededError
