@@ -59,4 +59,10 @@ Test local redis is up
     GET testkey
     ```
 
+# Start local redis
 
+docker run --name my-redis -p 6379:6379 -d redis:latest
+
+# Run Celery workers (need redis to be running)
+
+celery -A celery_app.celery_app worker --loglevel=info
