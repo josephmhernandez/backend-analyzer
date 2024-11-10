@@ -9,7 +9,7 @@ import time
 import os
 from github import Github
 from langchain_openai import ChatOpenAI
-from constants.constants import CODE_FILE_EXTENSIONS, PACKAGE_FILES, GITHUB_README_PATTERN, TOP_X_FILES, TOP_Y_FILES
+from constants.constants import CODE_FILE_EXTENSIONS, NO_PACKAGE_FILE_ANALYZE_LIST, PACKAGE_FILES, GITHUB_README_PATTERN, TOP_X_FILES, TOP_Y_FILES
 from datetime import datetime, timezone
 from utils import helpers
 import json5
@@ -65,8 +65,24 @@ class Analyzer:
                     pass
 
                 # Filter out package files
+                file_extension = file_content.name.split(".")[-1]
+                file_extension = "*." + file_extension
+
+                # Insert the file into the package_file in the correct order of the priority queue
                 if file_content.name in PACKAGE_FILES:
-                    package_files.append(file_content)
+                    package_files.append((file_content, PACKAGE_FILES.index(
+                        file_content.name) if file_content.name in PACKAGE_FILES else sys.maxsize))
+                elif file_extension in PACKAGE_FILES:
+                    package_files.append((file_content, PACKAGE_FILES.index(
+                        file_extension) if file_extension in PACKAGE_FILES else sys.maxsize))
+
+        # order package_file by priority. Min first then max
+        package_files.sort(key=lambda x: x[1])
+        self.logger.info(
+            "TEMP OUTPUT FOR PACKAGE FILES after sort", package_files)
+
+        package_files = [x[0] for x in package_files]
+        self.logger.info("TEMP OUTPUT FOR PACKAGE FILES", package_files)
 
         return files, readme_file, package_files, repo_url
 
@@ -187,6 +203,8 @@ class Analyzer:
     '''
 
     def start_repo_ai_workflow(self, username, repository_name):
+        branch_package_file_not_found = False
+
         rtn_title = repository_name
         rtn_user = username
         rtn_summary = None
@@ -206,6 +224,9 @@ class Analyzer:
         package_file_content = ""
         if package_file is not None:
             package_file_content = package_file.decoded_content
+            if package_file in NO_PACKAGE_FILE_ANALYZE_LIST:
+                branch_package_file_not_found = True
+
         self.logger.info(f"Package file content: {package_file_content}")
 
         readme_file_content = ""
@@ -249,6 +270,13 @@ class Analyzer:
         message = (
             f"You are a software dev. Condense the following package file only a list of dependency names and versions in a list that's follows the format: package_1,version;\npackage_2,version;\n ... {package_file_content}"
         )
+        if branch_package_file_not_found:
+            self.logger.warning(
+                "Branching out of the workflow for 'branch_package_file_not_found' flag.")
+            message = (
+                f"You are a software dev. The following is not a package file but still try to condense the dependencies in this file to a list of dependency names and versions in a list that's follows the format: package_1,version;\npackage_2,version;\n ... {package_file_content}"
+            )
+
         self.logger.info(f"Invoking GenAi message: {message}")
         res = gemini_flash_model.generate_content(message)
 
@@ -259,7 +287,9 @@ class Analyzer:
         # GET TECHNOLOGIES DESCRIPTION
         chat = gemini_flash_model.start_chat()
         message = (
-            f"You are a software dev describing a code repository to your tech lead. Look at the list of packages dependencies and versions as well as the readme file. Write a summary describing the technologies used in the project including the coding languages, frameworks, important libraries, and any cloud based services used in this project. Return the answer as a JSON Object like {{\"technologies_description\": str}} package list: {condensed_package_file_str} readme file: {readme_file_content}")
+            f"You are a software dev describing a code repository to your tech lead. Look at the list of packages dependencies and versions as well as the readme file. Write a summary describing the technologies used in the project including the coding languages, frameworks, important libraries, and any cloud based services used in this project. Do not include anything that is referenced in the README but not in the package file. Return the answer as a JSON Object like {{\"technologies_description\": str}} package list: {condensed_package_file_str} readme file: {readme_file_content}")
+        if branch_package_file_not_found:
+            message = "Note that the package file was not found. Indicating an immature and uncompleted project. " + message
         self.logger.info(f"Invoking GenAi chat(1) message: {message}....")
         res = chat.send_message(message)
         technologies_description = res.text
@@ -276,7 +306,8 @@ class Analyzer:
         message = (
             f"Look at the readme file, commit history, and pr history for this repository. Describe who this project is for and what it solves including what industry it is in. Also summarize what this project does including some of the key technology and software engineering techniques used in the project. Return in a JSON object: {{\"problem_statement\": str, \"technologies_description\": str, \"techniques_description\"}} readme file: {readme_file_content} commit history: {user_commits}"
         )
-        self.logger.info(f"Invoking GenAi chat(1) message: {message}....")
+        self.logger.info(
+            f"Invoking GenAi chat(SUMMARY AND PROBLEM STATEMENT) message: {message}....")
         response = chat.send_message(message)
         summary_problem_statement = response.text
         self.logger.info(
@@ -293,8 +324,9 @@ class Analyzer:
             f"COMPARE THESE TWO: first commit history technologies_description: {rtn_technologies_description} \n\n\nsecond commit history technologies_description: {tmp_technologies_description}")
 
         # GET THE TOP Y FILES TO LOOK AT
-        message = f"Now that you have a good understanding of the project, here is the file structure of the project. Identify the most important files in the project a developer would need to look at to have a better understaning of how the project works. List the top 5 files and a confidence score (0-100) for each file that you think are the most important modules in the code base. Return the list of files and confidence scores in a JSON object: [{{\"file_path\": str, \"confidence_score\": str}}]. Here are the files: {file_paths}. Don't return anything else."
-        print(f"Invoking GenAi chat(1) message: {message}....")
+        message = f"Now that you have a good understanding of the project, here is the file structure of the project. Identify the most important files in the project a developer would need to look at to have a better understanding of how the project works. List the top 5 files and a confidence score (0-100) for each file that you think are the most important modules in the code base. Return the list of files and confidence scores in a JSON object: [{{\"file_path\": str, \"confidence_score\": str}}]. Here are the files: {file_paths}. Don't return anything else."
+        print(
+            f"Invoking GenAi chat(TOP Y FILES TO LOOK AT) message: {message}....")
         response = chat.send_message(
             message
         )
@@ -324,7 +356,7 @@ class Analyzer:
                 (f for f in files if f.path == file_path), None)
 
             if file_obj is None:
-                self.logger.warn(f"File not found: {file_path}")
+                self.logger.warning(f"File not found: {file_path}")
                 continue
             else:
                 self.logger.info(f"Found file: {file_path}")
@@ -332,7 +364,7 @@ class Analyzer:
             # DECODE FILE CONTENT.
             file_content = helpers.extract_file_content(file_obj)
             if file_content is None:
-                self.logger.warn(f"File content not found: {file_path}")
+                self.logger.warning(f"File content not found: {file_path}")
                 # Skip this file
                 continue
 
@@ -341,9 +373,10 @@ class Analyzer:
             added_files += 1
 
         message = (
-            f"Here is a summary of the project for context. Now look at these three important files and describe how you would re-write them to make them more efficient. Make sure to highlight where the good coding practices as well as criticize anti-patterns or bad coding practices found in these modules. List the points you would change and why you woulld change it. Return the analysis in a JSON OBJECT: [{{\"file_path\": str, \"analysis\": str}}]. Only give me the JSON object. Don't return suggested code. Only analyse the files if the file content is present. Here are the files: {important_files_content}"
+            f"Here is a summary of the project for context. Now look at these three important files and describe how you would re-write them to make them more efficient. Make sure to highlight where the good coding practices as well as criticize anti-patterns or bad coding practices found in these modules. List the points you would change and why you would change it. Return the analysis in a JSON OBJECT: [{{\"file_path\": str, \"analysis\": str}}]. Only give me the JSON object. Don't return suggested code. Only analyse the files if the file content is present. Here are the files: {important_files_content}"
         )
-        self.logger.info(f"Invoking GenAi chat(1) message: {message}....")
+        self.logger.info(
+            f"Invoking GenAi chat(GET TOP X files) message: {message}....")
         response = chat.send_message(message)
         analysis = response.text
         self.logger.info(f"Analysis code files: {analysis}")
@@ -352,7 +385,8 @@ class Analyzer:
         message = (
             f"Look at the analysis of the important files. Write a summary of the critics and suggestions made in the analysis. Return the summary in a JSON object: {{\"critics_description\": \"description\"}}. Here is the analysis: {analysis}"
         )
-        self.logger.info(f"Invoking GenAi chat(1) message: {message}")
+        self.logger.info(
+            f"Invoking GenAi chat(GET CRITICS OF TOP X FILES) message: {message}")
         response = chat.send_message(message)
         critics_description = response.text
         self.logger.info(f"Critics description: {critics_description}")
@@ -365,9 +399,10 @@ class Analyzer:
 
         # DOUBLE CHECK MOST UP TO DATE DESCRIPTIONS
         message = (
-            f"Look the total analysis of this repository. Update the summary, problem statement, and techniques description. Return the updated JSON object: {{\"summary\": str, \"problem_statement\": str, \"techniques_description\": str}} analysis: {analysis}, techniques_description: {rtn_techniques_description}, summary: {rtn_summary}, problem_statement: {rtn_problem_statement}, another techniques_description: {tmp_technologies_description}"
+            f"Look the total analysis of this repository. Ensure accuracy of all the descriptions. Update the summary, problem statement, technologies description, and techniques description to ensure accuracy. Return the updated JSON object: {{\"summary\": str, \"problem_statement\": str, \"techniques_description\": str}} analysis: {analysis}, techniques_description: {rtn_techniques_description}, summary: {rtn_summary}, problem_statement: {rtn_problem_statement}, another techniques_description: {tmp_technologies_description}"
         )
-        self.logger.info(f"Invoking GenAi chat(1) message: {message}")
+        self.logger.info(
+            f"Invoking GenAi chat(DOUBLE CHECK) message: {message}")
         response = chat.send_message(message)
         updated_descriptions = response.text
         self.logger.info(f"Updated descriptions: {updated_descriptions}")

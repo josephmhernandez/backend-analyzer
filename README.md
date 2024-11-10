@@ -66,3 +66,7 @@ docker run --name my-redis -p 6379:6379 -d redis:latest
 # Run Celery workers (need redis to be running)
 
 celery -A celery_app.celery_app worker --loglevel=info
+
+# Flush Redis Queue:
+
+docker exec -it local-redis redis-cli FLUSHALL
