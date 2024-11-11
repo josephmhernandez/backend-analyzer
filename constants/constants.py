@@ -38,7 +38,8 @@ CODE_FILE_EXTENSIONS = {
     ".au3", ".applescript", ".wsf", ".rpy", ".ahk"
 }
 
-PACKAGE_FILES = {
+# PRIORITY AT THE TOP
+PACKAGE_FILES = [
     "package.json",  # Node.js (JavaScript, TypeScript)
     "yarn.lock",  # Yarn (JavaScript, TypeScript)
     "pnpm-lock.yaml",  # PNPM (JavaScript, TypeScript)
@@ -68,8 +69,8 @@ PACKAGE_FILES = {
     "conanfile.txt",  # Conan (C, C++)
     "conanfile.py",  # Conan (C, C++)
     "Vagrantfile",  # Vagrant (Virtualization, provisioning)
-    "Dockerfile",  # Docker (Containerization)
-    "docker-compose.yml",  # Docker Compose (Container orchestration)
+    # "Dockerfile",  # Docker (Containerization)
+    # "docker-compose.yml",  # Docker Compose (Container orchestration)
     "build.sbt",  # SBT (Scala, Java)
     "mix.exs",  # Mix (Elixir)
     "rebar.config",  # Rebar (Erlang)
@@ -129,7 +130,18 @@ PACKAGE_FILES = {
     "*.dev",  # Dev-C++ project file (C/C++)
     "*.mkd",  # Makefile build description (Various languages)
     "*.uvprojx",  # Keil uVision project file (Embedded development)
-    "*.uvoptx"  # Keil uVision options file (Embedded development)
+    "*.uvoptx",  # Keil uVision options file (Embedded development)
+
+    # Other files scraping the bottom of the barrel
+    "buildspec.yml",  # AWS CodeBuild build spec (AWS)
+    "index.html",  # HTML index file (Web development)
+    "*.ipynb",  # Jupyter Notebook (Python)
+]
+
+NO_PACKAGE_FILE_ANALYZE_LIST = {
+    "buildspec.yml",  # AWS CodeBuild build spec (AWS)
+    "index.html",  # HTML index file (Web development)
+    "*.ipynb",  # Jupyter Notebook (Python)
 }
 
 GITHUB_README_PATTERN = "/^readme\.(?:markdown|mdown|mkdn|md|textile|rdoc|org|creole|mediawiki|wiki|rst|asciidoc|adoc|asc|pod|txt)/i"
