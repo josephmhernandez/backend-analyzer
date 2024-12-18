@@ -70,3 +70,10 @@ celery -A celery_app.celery_app worker --loglevel=info
 # Flush Redis Queue:
 
 docker exec -it local-redis redis-cli FLUSHALL
+
+
+
+<!-- RUN api locally -->
+docker run -v ~/.aws:/root/.aws \
+           -e AWS_DEFAULT_REGION=us-east-1 \
+           -p 8000:8000 ba-api       

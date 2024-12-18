@@ -15,7 +15,7 @@ GITHUB_SEARCH_QUERIES = [
 
 
 REPO_ANALYSIS_TABLE = "repository_analyses"
-
+TASKS_TABLE = "tasks"
 
 # Supabase machine user constants
 MACHINE_USER_ID = "ee040e73-d678-4b95-b8f2-f3f8468ff2a8"
@@ -148,3 +148,7 @@ GITHUB_README_PATTERN = "/^readme\.(?:markdown|mdown|mkdn|md|textile|rdoc|org|cr
 
 TOP_Y_FILES = 10  # Number of files to assign a confidence score to
 TOP_X_FILES = 3  # Number of files to load into the AI model for analysis
+
+TASK_STATUS_FAILURE = "FAILURE"
+TASK_STATUS_SUCCESS = "SUCCESS"
+TASK_STATUS_PENDING = "PENDING"

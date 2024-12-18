@@ -1,9 +1,8 @@
-import os
 from supabase import create_client, Client
 from supabase.client import ClientOptions
 import logging
 
-from constants.constants import REPO_ANALYSIS_TABLE
+from constants.constants import REPO_ANALYSIS_TABLE, TASK_STATUS_PENDING, TASKS_TABLE
 
 
 class SupabaseService:
@@ -30,11 +29,13 @@ class SupabaseService:
     insert_repo_analysis: inserts summaries into the repository_analyses table 
     '''
 
-    def __init__(self):
+    def __init__(self, secrets_manager):
         self.logger = logging.getLogger(__name__)
+        self.secrets_manager = secrets_manager
+
         self.supabase_client: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY"),
+            self.secrets_manager.get("supabase.url"),
+            self.secrets_manager.get("supabase.key"),
             options=ClientOptions(
                 postgrest_client_timeout=10,
                 storage_client_timeout=10,
@@ -80,3 +81,59 @@ class SupabaseService:
         except Exception as e:
             self.logger.error("Error in insert_repo_analysis: %s", e)
             return None
+
+    def insert_task(self, task_id: str):
+        '''
+        Inserts a task into the tasks table
+        '''
+        try:
+            response = self.supabase_client.table(TASKS_TABLE).insert(
+                {
+                    "id": task_id,
+                    "status": TASK_STATUS_PENDING,
+                }
+            ).execute()
+
+            # Log the response to understand its structure
+            self.logger.info("Insert response: %s", response)
+
+            # Access the data correctly based on the response structure
+            if response.data:
+                return response.data[0]["id"]
+            else:
+                self.logger.error("No data in response")
+                return None
+        except KeyError as e:
+            self.logger.error(
+                "Extracting id object in insert_task: %s", e)
+            raise e
+        except Exception as e:
+            self.logger.error("Error in insert_task: %s", e)
+            raise e
+
+    def get_task_status(self, task_id: str):
+        '''
+        Retrieves the status of a task from the tasks table
+        '''
+        try:
+            response = self.supabase_client.table(TASKS_TABLE).select(
+                "status",
+                "message"
+            ).eq("id", task_id).execute()
+
+            # Log the response to understand its structure
+            self.logger.info("Select response: %s", response)
+
+            # Access the data correctly based on the response structure
+            if response.data:
+                return response.data[0]["status"]
+            else:
+                self.logger.error("No data in response")
+                return "UNKNOWN"
+        except KeyError as e:
+            self.logger.error(
+                "Extracting status object in get_task_status: %s", e)
+            raise e
+        except Exception as e:
+            self.logger.error("Error in get_task_status: %s", e)
+            raise e

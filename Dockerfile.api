@@ -1,17 +1,27 @@
-# Use the official Python image from the Docker Hub
-FROM python:3.10-slim
+# Use a lightweight Python base image
+FROM python:3.10-slim AS builder
 
-# Set the working directory in the container
+# Set the working directory
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Install system dependencies (if required for libraries)
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
 
-# Install any needed packages specified in requirements.txt
+# Copy only the requirements file and install dependencies
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port 80
-EXPOSE 80
+# Copy the necessary code to run the API
+COPY main.py main.py
+COPY logging_config.py logging_config.py
+COPY clients/ clients/
+COPY services/ services/
+COPY utils/ utils/
+COPY constants/ constants/
+COPY models/ models/
 
-# Define the command to run the FastAPI application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
+# Expose the port the API will run on
+EXPOSE 8000
+
+# Command to run the FastAPI server using Uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
