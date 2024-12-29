@@ -39,34 +39,7 @@ docker run -d -p 8000:8000 be-analyzer
 deploy to aws (deploy.sh not committed)
 
 ```
-./deploy.sh
+./deploy-api.sh
 ```
 
-Redis Stuff
-Locally start redis
-
-```
-docker pull redis:latest
-docker run --name my-local-redis -p 6379:6379 -d redis:latest
-```
-
-Test local redis is up
-
-    ```
-    docker exec -it my-redis redis-cli
-    SET testkey "Hello, Redis!"
-
-    GET testkey
-    ```
-
-# Start local redis
-
-docker run --name my-redis -p 6379:6379 -d redis:latest
-
-# Run Celery workers (need redis to be running)
-
-celery -A celery_app.celery_app worker --loglevel=info
-
-# Flush Redis Queue:
-
-docker exec -it local-redis redis-cli FLUSHALL
+Then create a new task definition and deploy new task definition to the cluster service.
