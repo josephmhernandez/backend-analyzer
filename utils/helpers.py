@@ -1,5 +1,7 @@
 
+import json
 import logging
+import uuid
 
 
 def extract_file_content(file):
