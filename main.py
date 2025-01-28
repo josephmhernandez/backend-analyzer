@@ -1,11 +1,14 @@
+from enum import Enum
 import json
 import uuid
 import boto3
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.responses import JSONResponse
+from models.candidate_analysis_request import CandidateAnalysisRequest
 from models.github_repository_request import GithubRepositoryRequest
 import logging
 from logging_config import setup_logging
+from models.sqs_queue import SqsQueue
 from services.SupabaseServiceSqs import SupabaseServiceSqs
 import os
 from dotenv import load_dotenv
@@ -43,6 +46,7 @@ async def custom_404_handler(request: Request, exc: HTTPException):
 def read_root():
     return {"message": "Hello World"}
 
+
 secrets_manager = SecretsManager(secret_name="prod/repo-analyzer")
 supabase_service_sqs = SupabaseServiceSqs(secrets_manager=secrets_manager)
 
@@ -67,6 +71,45 @@ def send_message_to_sqs(message_body: dict):
             MessageBody=json.dumps(message_body),
             MessageGroupId=message_group_id,
             MessageDeduplicationId=f"{task_id}"
+        )
+        message_id = response['MessageId']
+        logging.info(f"Message sent! Message ID: {message_id}")
+
+        # Want to return the unique task id. This will be the queue_task_id in the tasks table
+        return task_id
+    except Exception as e:
+        logging.error(f"Error sending message: {e}")
+
+
+def send_message_to_sqs_non_fifo(sqs_type: SqsQueue, message_body: dict):
+    '''
+    Sends a message to an SQS queue
+
+    ONLY WORKS FOR NON FIFO QUEUES. REPOSITORY QUEUE IS FIFO.
+
+    Args:
+        sqs_type (SqsQueue): The type of queue to send the message to
+        message_body (dict): The message body to send
+    Returns:
+        string: The task id
+        throws: Exception if there is an error sending the message
+    '''
+    try:
+
+        queue_url = secrets_manager.get(sqs_type.value)
+        if queue_url is None:
+            raise Exception(
+                f"Queue URL not found for queue type: {sqs_type}")
+
+        # Random message DeduplicationId:
+        task_id = str(uuid.uuid4())
+        # add taskId to message body as string
+        message_body["taskId"] = task_id
+
+        # Send a message
+        response = sqs_client.send_message(
+            QueueUrl=queue_url,
+            MessageBody=json.dumps(message_body),
         )
         message_id = response['MessageId']
         logging.info(f"Message sent! Message ID: {message_id}")
@@ -107,6 +150,37 @@ async def submit_analysis_request(input_data: GithubRepositoryRequest, authoriza
 
     return {"status": "Job submitted successfully", "task_id": task_id}
 
+
+@app.post("/candidate-analysis")
+async def submit_candidate_analysis_request(candidate_analysis_request: CandidateAnalysisRequest, authorization: str = Header(None)):
+    logging.info(f"Received request: {candidate_analysis_request}")
+    check_api_authorization_sqs(authorization)
+    try:
+        # Submit to queue.
+        queue_type = SqsQueue.CANDIDATE
+        logger.info(
+            f"Placing message in queue. Message: {candidate_analysis_request.model_dump()}")
+        task_id = send_message_to_sqs_non_fifo(
+            sqs_type=queue_type, message_body=candidate_analysis_request.model_dump())
+        logger.info(f"Task ID: {task_id}")
+
+        if task_id is None:
+            raise Exception("Error sending message to the queue")
+
+        # Insert the task into the database
+        res = supabase_service_sqs.insert_task_sqs(
+            queue_type=queue_type, task_id=task_id)
+        if not res:
+            raise Exception("Error inserting task into the database")
+
+        return {"status": "Candidate Job submitted successfully", "task_id": task_id}
+
+    except Exception as ex:
+        logging.error(f"Error submitting task: {str(ex)}")
+        raise HTTPException(
+            status_code=500, detail="Error analyzing repository")
+
+
 @app.get("/task/{task_id}/status")
 async def get_sqs_task_status(task_id: str):
 
@@ -145,4 +219,5 @@ def check_api_authorization_sqs(api_key):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)

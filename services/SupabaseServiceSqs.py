@@ -4,6 +4,7 @@ from supabase.client import ClientOptions
 import logging
 
 from constants.constants import REPO_ANALYSIS_TABLE, TASK_STATUS_PENDING, TASK_TABLE
+from models.sqs_queue import SqsQueue
 
 
 class SupabaseServiceSqs:
@@ -91,6 +92,42 @@ class SupabaseServiceSqs:
             response = self.supabase_client.table(TASK_TABLE).insert(
                 {
                     "queue_task_id": task_id,
+                    "status": TASK_STATUS_PENDING,
+                }
+            ).execute()
+
+            # Log the response to understand its structure
+            self.logger.info("Insert response: %s", response)
+
+            # Access the data correctly based on the response structure
+            if response.data:
+                return response.data[0]["id"]
+            else:
+                self.logger.error("No data in response")
+                return None
+        except KeyError as e:
+            self.logger.error(
+                "Extracting id object in insert_task: %s", e)
+            raise e
+        except Exception as e:
+            self.logger.error("Error in insert_task: %s", e)
+            raise e
+
+    def insert_task_sqs(self, task_id: str, queue_type=SqsQueue.REPOSITORY):
+        '''
+        Inserts a task into the tasks table
+        Args: 
+            task_id (string): The task id to insert
+            queue_type (SqsQueue): The type of queue the task is from
+        Returns:
+            string: The task id
+            throws: Exception if there is an error inserting the task
+        '''
+        try:
+            response = self.supabase_client.table(TASK_TABLE).insert(
+                {
+                    "queue_task_id": task_id,
+                    "queue_type": queue_type.name,
                     "status": TASK_STATUS_PENDING,
                 }
             ).execute()
